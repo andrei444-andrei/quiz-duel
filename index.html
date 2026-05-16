@@ -153,8 +153,25 @@
 
   /* ============ МОБИЛЬНЫЙ ВЬЮ ============ */
   @media (max-width: 600px) {
-    body { padding: 12px; align-items: flex-start; }
-    .card { padding: 18px 16px; border-radius: 16px; }
+    body {
+      padding: 0;
+      align-items: stretch;
+      justify-content: stretch;
+      background: #1c1c1e;        /* фон сливается с карточкой, фиолетового градиента не видно */
+    }
+    .card {
+      border-radius: 0;
+      max-width: 100%;
+      width: 100%;
+      min-height: 100vh;
+      min-height: 100dvh;
+      box-shadow: none;
+      padding:
+        max(20px, env(safe-area-inset-top))
+        max(16px, env(safe-area-inset-right))
+        max(20px, env(safe-area-inset-bottom))
+        max(16px, env(safe-area-inset-left));
+    }
     h1 { font-size: 1.45rem; }
     h2 { font-size: 0.92rem; margin-bottom: 14px; }
     label { margin: 10px 0 5px; }
