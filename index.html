@@ -101,6 +101,63 @@
   .row-pick.ok   { box-shadow: inset 4px 0 0 #34c759; }
   .row-pick.fail { box-shadow: inset 4px 0 0 #ff3b30; }
 
+  /* любопытный факт после раунда */
+  .fact-card {
+    position: relative;
+    margin-top: 14px;
+    padding: 16px 18px 18px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #2a1f3d 0%, #1a3a5a 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+    animation: factSlide 0.45s ease-out 0.2s both;
+  }
+  .fact-card::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 0% 0%, rgba(255,200,80,0.18), transparent 60%);
+    pointer-events: none;
+  }
+  .fact-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ffd166;
+    margin-bottom: 6px;
+  }
+  .fact-text {
+    font-size: 1.02rem; line-height: 1.5;
+    color: #f4f4f6;
+    position: relative;
+  }
+  @keyframes factSlide {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* лидерборд */
+  .lb-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px 12px;
+    align-items: center;
+    background: #2c2c2e; padding: 12px 14px; border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .lb-row .date { color: #c8c8d0; font-size: 0.78rem; }
+  .lb-row .topic { color: #c8c8d0; font-size: 0.78rem; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-row .matchup { grid-column: 1 / -1; font-size: 0.98rem; font-weight: 600; }
+  .lb-row .matchup .w { color: #ffd166; }
+  .lb-row .matchup .l { color: #c8c8d0; }
+  .lb-row .matchup .vs { color: #8e8e93; margin: 0 6px; }
+  .lb-row.draw .matchup { color: #8e8e93; }
+  .lb-empty { color: #c8c8d0; text-align: center; padding: 30px 0; font-size: 0.95rem; }
+
+  .btn-ghost {
+    background: transparent !important;
+    border: 1px solid #3a3a3c !important;
+    color: #fff !important;
+  }
+
   /* конфетти */
   .confetti {
     position: fixed; top: -20px; pointer-events: none;
@@ -208,6 +265,10 @@
 
     .winner { font-size: 1.5rem; }
     .confetti { font-size: 1.1rem; }
+
+    .fact-card { padding: 14px 14px 15px; margin-top: 12px; }
+    .fact-text { font-size: 0.96rem; }
+    .lb-row { padding: 10px 12px; }
   }
 
   /* Очень маленькие телефоны (iPhone SE и т.п.) */
@@ -248,7 +309,8 @@ function renderSetup() {
     <label>Имя игрока 2</label>
     <input id="p2" value="${state.p2}">
     <button id="start">Начать</button>
-    <div class="small">Вопросы генерируются ИИ. Если интернет недоступен — будет резервный набор.</div>
+    <button id="show-lb" class="btn-ghost">🏆 Лидерборд</button>
+    <div class="small">Вопросы генерируются ИИ. После игры результат сохраняется в общий лидерборд.</div>
     <div id="err"></div>
   `;
   document.getElementById('start').onclick = async () => {
@@ -270,6 +332,7 @@ function renderSetup() {
       showErr('Не удалось сгенерировать вопросы: ' + e.message);
     }
   };
+  document.getElementById('show-lb').onclick = () => renderLeaderboard();
 }
 
 function showErr(msg) {
@@ -400,6 +463,13 @@ function renderRoundResult() {
       <div>${letter(c2)}. ${escapeHtml(optText(c2))}</div>
     </div>
 
+    ${q.fact ? `
+      <div class="fact-card">
+        <div class="fact-label">💡 А ты знал?</div>
+        <div class="fact-text">${escapeHtml(q.fact)}</div>
+      </div>
+    ` : ''}
+
     <button id="next">${i + 1 >= state.questions.length ? 'Подвести итоги' : 'Следующий вопрос →'}</button>
   `;
 
@@ -444,9 +514,18 @@ function renderResult() {
       <div class="p"><div class="name">${escapeHtml(state.p2)}</div><div class="pts">${state.score.p2}</div></div>
     </div>
     <div class="center winner">${winner}</div>
+    <div class="small center" id="save-status">Сохраняем результат…</div>
     <button id="again">Сыграть ещё раз</button>
-    <button id="newtopic" style="background:#3a3a3c;">Новая тема</button>
+    <button id="show-lb" class="btn-ghost">🏆 Лидерборд</button>
+    <button id="newtopic" class="btn-ghost">Новая тема</button>
   `;
+  // сохраняем игру в лидерборд (если БД не настроена — просто молча игнорим)
+  saveGameToLeaderboard().then(ok => {
+    const el = document.getElementById('save-status');
+    if (!el) return;
+    el.textContent = ok ? '✓ Результат сохранён в лидерборд' : '';
+  });
+
   document.getElementById('again').onclick = async () => {
     renderLoading();
     try {
@@ -459,7 +538,82 @@ function renderResult() {
       renderSetup(); showErr(e.message);
     }
   };
+  document.getElementById('show-lb').onclick = () => renderLeaderboard();
   document.getElementById('newtopic').onclick = renderSetup;
+}
+
+async function saveGameToLeaderboard() {
+  try {
+    const r = await fetch('/api/leaderboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic: state.topic,
+        p1: state.p1,
+        p2: state.p2,
+        score1: state.score.p1,
+        score2: state.score.p2,
+      }),
+    });
+    return r.ok;
+  } catch { return false; }
+}
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+async function renderLeaderboard() {
+  root.innerHTML = `
+    <h1>🏆 Лидерборд</h1>
+    <h2>Последние 50 завершённых игр</h2>
+    <div id="lb-list"><div class="spinner"></div></div>
+    <button id="back" class="btn-ghost">← Назад</button>
+  `;
+  document.getElementById('back').onclick = renderSetup;
+
+  let entries = [];
+  let err = null;
+  try {
+    const r = await fetch('/api/leaderboard');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    entries = data.entries || [];
+  } catch (e) { err = e.message; }
+
+  const list = document.getElementById('lb-list');
+  if (err) {
+    list.innerHTML = `<div class="lb-empty">База ещё не подключена.<br><span class="small">Добавь Upstash Redis в Storage проекта Vercel.</span></div>`;
+    return;
+  }
+  if (entries.length === 0) {
+    list.innerHTML = `<div class="lb-empty">Пока никто не сыграл. Будь первым!</div>`;
+    return;
+  }
+
+  list.innerHTML = entries.map(e => {
+    const isDraw = e.winner === 'draw';
+    let matchup;
+    if (isDraw) {
+      matchup = `${escapeHtml(e.p1)} <span class="vs">${e.s1} : ${e.s2}</span> ${escapeHtml(e.p2)} — ничья`;
+    } else {
+      const winner = e.winner;
+      const loser = winner === e.p1 ? e.p2 : e.p1;
+      const ws = winner === e.p1 ? e.s1 : e.s2;
+      const ls = winner === e.p1 ? e.s2 : e.s1;
+      matchup = `🏆 <span class="w">${escapeHtml(winner)}</span> <span class="vs">${ws} : ${ls}</span> <span class="l">${escapeHtml(loser)}</span>`;
+    }
+    return `
+      <div class="lb-row ${isDraw ? 'draw' : ''}">
+        <div class="date">${formatDate(e.ts)}</div>
+        <div></div>
+        <div class="topic" title="${escapeHtml(e.topic)}">${escapeHtml(e.topic)}</div>
+        <div class="matchup">${matchup}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 // =================== ГЕНЕРАЦИЯ ВОПРОСОВ ===================
@@ -485,6 +639,7 @@ async function generateQuestions(topic) {
     q: String(item.q || item.question || ''),
     options: (item.options || item.answers || []).slice(0, 4).map(String),
     correct: Math.max(0, Math.min(3, Number(item.correct ?? item.answer ?? 0))),
+    fact: String(item.fact || item.explanation || '').slice(0, 400),
   })).filter(x => x.q && x.options.length === 4);
   if (cleaned.length < 10) throw new Error('Недостаточно валидных вопросов');
   return cleaned;
