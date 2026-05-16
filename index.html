@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Дуэль викторина</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    color: #fff;
+  }
+  .card {
+    background: rgba(28,28,30,0.95);
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 560px;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+  }
+  h1 { margin: 0 0 8px; font-size: 1.8rem; }
+  h2 { margin: 0 0 20px; font-weight: 500; color: #c8c8d0; font-size: 1rem; }
+  label { display:block; margin: 14px 0 6px; font-size: 0.9rem; color: #c8c8d0; }
+  input {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid #3a3a3c; background: #2c2c2e; color: #fff;
+    font-size: 1rem; outline: none;
+  }
+  input:focus { border-color: #ff9500; }
+  button {
+    width: 100%; padding: 14px; border: none; border-radius: 12px;
+    background: #ff9500; color: #fff; font-size: 1.05rem; font-weight: 600;
+    cursor: pointer; margin-top: 20px; transition: filter 0.15s;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .options { display: grid; gap: 10px; margin-top: 18px; }
+  .opt {
+    background: #2c2c2e; padding: 14px 16px; border-radius: 12px;
+    cursor: pointer; border: 2px solid transparent;
+    transition: all 0.15s; text-align: left;
+    font-size: 1rem; color: #fff;
+  }
+  .opt:hover { background: #3a3a3c; }
+  .opt.correct { background: #34c759; border-color: #34c759; }
+  .opt.wrong { background: #ff3b30; border-color: #ff3b30; }
+  .opt.picked { border-color: #ff9500; background: #3a2a10; }
+  .opt.disabled { pointer-events: none; opacity: 0.7; }
+  .opt .marks { float: right; font-size: 0.85rem; opacity: 0.9; }
+
+  /* итог раунда */
+  .round-banner {
+    text-align: center;
+    font-size: 1.6rem;
+    font-weight: 800;
+    padding: 18px;
+    border-radius: 16px;
+    margin-bottom: 14px;
+    animation: pop 0.5s cubic-bezier(.2,1.5,.5,1);
+  }
+  .round-banner.both    { background: linear-gradient(135deg,#34c759,#1e8a3b); }
+  .round-banner.p1      { background: linear-gradient(135deg,#ff9500,#c46c00); }
+  .round-banner.p2      { background: linear-gradient(135deg,#5e5cff,#3530a0); }
+  .round-banner.none    { background: linear-gradient(135deg,#8e8e93,#48484a); }
+  @keyframes pop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    70%  { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  .round-answer {
+    background: #34c759; color: #fff;
+    padding: 10px 14px; border-radius: 10px;
+    margin: 8px 0 14px;
+    font-weight: 600;
+  }
+  .row-pick {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #2c2c2e; padding: 12px 14px; border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .row-pick .left { display: flex; align-items: center; gap: 10px; }
+  .row-pick .icon { font-size: 1.4rem; }
+  .row-pick.ok   { box-shadow: inset 4px 0 0 #34c759; }
+  .row-pick.fail { box-shadow: inset 4px 0 0 #ff3b30; }
+
+  /* конфетти */
+  .confetti {
+    position: fixed; top: -20px; pointer-events: none;
+    font-size: 1.4rem;
+    animation: fall linear forwards;
+  }
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(720deg); opacity: 0.2; }
+  }
+  .header { display:flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .badge {
+    background: #ff9500; color: #fff; padding: 6px 12px;
+    border-radius: 20px; font-size: 0.85rem; font-weight: 600;
+  }
+  .score { display:flex; gap: 12px; margin-bottom: 18px; }
+  .p {
+    flex: 1; background: #2c2c2e; padding: 12px; border-radius: 12px;
+    text-align: center; border: 2px solid transparent;
+  }
+  .p.active { border-color: #ff9500; }
+  .p .name { font-size: 0.8rem; color: #c8c8d0; }
+  .p .pts { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+  .q { font-size: 1.15rem; margin: 14px 0 6px; line-height: 1.4; }
+  .turn { text-align: center; color: #ff9500; font-weight: 600; margin-bottom: 8px; }
+  .spinner {
+    width: 40px; height: 40px; border: 4px solid #3a3a3c;
+    border-top-color: #ff9500; border-radius: 50%;
+    animation: spin 1s linear infinite; margin: 30px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .center { text-align: center; }
+  .winner { font-size: 2rem; margin: 16px 0; }
+  .small { font-size: 0.85rem; color: #c8c8d0; margin-top: 8px; }
+  .err {
+    background: #ff3b30; padding: 10px 14px; border-radius: 10px;
+    margin-top: 14px; font-size: 0.9rem;
+  }
+</style>
+</head>
+<body>
+<div class="card" id="root"></div>
+
+<script>
+const root = document.getElementById('root');
+const state = {
+  topic: '',
+  p1: 'Игрок 1',
+  p2: 'Игрок 2',
+  questions: [],
+  index: 0,
+  turnInRound: 0, // 0 — отвечает первый по очереди, 1 — второй
+  roundChoices: { p1: null, p2: null },
+  score: { p1: 0, p2: 0 },
+};
+
+// =================== ЭКРАНЫ ===================
+
+function renderSetup() {
+  root.innerHTML = `
+    <h1>🎯 Дуэль викторина</h1>
+    <h2>Тема → 10 вопросов → побеждает тот, кто ответил правильно больше раз</h2>
+    <label>Тема</label>
+    <input id="topic" placeholder="Например: космос, история Рима, кино 90-х" value="${state.topic}">
+    <label>Имя игрока 1</label>
+    <input id="p1" value="${state.p1}">
+    <label>Имя игрока 2</label>
+    <input id="p2" value="${state.p2}">
+    <button id="start">Начать</button>
+    <div class="small">Вопросы генерируются ИИ. Если интернет недоступен — будет резервный набор.</div>
+    <div id="err"></div>
+  `;
+  document.getElementById('start').onclick = async () => {
+    const topic = document.getElementById('topic').value.trim();
+    if (!topic) { showErr('Введи тему'); return; }
+    state.topic = topic;
+    state.p1 = document.getElementById('p1').value.trim() || 'Игрок 1';
+    state.p2 = document.getElementById('p2').value.trim() || 'Игрок 2';
+    renderLoading();
+    try {
+      state.questions = await generateQuestions(topic);
+      state.index = 0; state.turnInRound = 0;
+      state.score = { p1: 0, p2: 0 };
+      state.roundChoices = { p1: null, p2: null };
+      renderQuestion();
+    } catch (e) {
+      console.error(e);
+      renderSetup();
+      showErr('Не удалось сгенерировать вопросы: ' + e.message);
+    }
+  };
+}
+
+function showErr(msg) {
+  const el = document.getElementById('err');
+  if (el) el.innerHTML = `<div class="err">${msg}</div>`;
+}
+
+function renderLoading() {
+  root.innerHTML = `
+    <h1>Готовим вопросы…</h1>
+    <h2>Тема: <b>${escapeHtml(state.topic)}</b></h2>
+    <div class="spinner"></div>
+    <div class="center small">ИИ придумывает 10 вопросов</div>
+  `;
+}
+
+function renderQuestion() {
+  const i = state.index;
+  const q = state.questions[i];
+  // На вопросе i первым отвечает игрок (i % 2 === 0 ? p1 : p2)
+  const firstIsP1 = (i % 2 === 0);
+  const currentIsP1 = state.turnInRound === 0 ? firstIsP1 : !firstIsP1;
+  const currentName = currentIsP1 ? state.p1 : state.p2;
+
+  root.innerHTML = `
+    <div class="header">
+      <div class="badge">Вопрос ${i + 1} / 10</div>
+      <div class="small">Тема: ${escapeHtml(state.topic)}</div>
+    </div>
+    <div class="score">
+      <div class="p ${currentIsP1 ? 'active' : ''}">
+        <div class="name">${escapeHtml(state.p1)}</div>
+        <div class="pts">${state.score.p1}</div>
+      </div>
+      <div class="p ${!currentIsP1 ? 'active' : ''}">
+        <div class="name">${escapeHtml(state.p2)}</div>
+        <div class="pts">${state.score.p2}</div>
+      </div>
+    </div>
+    <div class="turn">Отвечает: ${escapeHtml(currentName)}</div>
+    <div class="q">${escapeHtml(q.q)}</div>
+    <div class="options" id="options"></div>
+  `;
+  const opts = document.getElementById('options');
+  q.options.forEach((opt, idx) => {
+    const b = document.createElement('div');
+    b.className = 'opt';
+    b.textContent = `${'ABCD'[idx]}. ${opt}`;
+    b.onclick = () => handleAnswer(idx, b);
+    opts.appendChild(b);
+  });
+}
+
+function handleAnswer(choiceIdx, btn) {
+  const i = state.index;
+  const firstIsP1 = (i % 2 === 0);
+  const currentIsP1 = state.turnInRound === 0 ? firstIsP1 : !firstIsP1;
+
+  // запоминаем выбор без раскрытия правильности
+  if (currentIsP1) state.roundChoices.p1 = choiceIdx;
+  else state.roundChoices.p2 = choiceIdx;
+
+  // блокируем кнопки этого экрана и подсвечиваем выбор нейтрально
+  document.querySelectorAll('.opt').forEach((el, idx) => {
+    el.classList.add('disabled');
+    if (idx === choiceIdx) el.classList.add('picked');
+  });
+
+  // короткая задержка, потом второй игрок отвечает на чистом экране
+  setTimeout(() => {
+    if (state.turnInRound === 0) {
+      state.turnInRound = 1;
+      renderQuestion();
+    } else {
+      // оба ответили — считаем и показываем итог раунда
+      const q = state.questions[i];
+      if (state.roundChoices.p1 === q.correct) state.score.p1++;
+      if (state.roundChoices.p2 === q.correct) state.score.p2++;
+      renderRoundResult();
+    }
+  }, 450);
+}
+
+function renderRoundResult() {
+  const i = state.index;
+  const q = state.questions[i];
+  const c1 = state.roundChoices.p1;
+  const c2 = state.roundChoices.p2;
+  const ok1 = c1 === q.correct;
+  const ok2 = c2 === q.correct;
+
+  let banner, emoji, cls;
+  if (ok1 && ok2)        { banner = `Оба угадали!`; emoji = '🎯'; cls = 'both'; }
+  else if (ok1 && !ok2)  { banner = `Раунд берёт ${state.p1}!`; emoji = '🏆'; cls = 'p1'; }
+  else if (!ok1 && ok2)  { banner = `Раунд берёт ${state.p2}!`; emoji = '🏆'; cls = 'p2'; }
+  else                   { banner = `Оба мимо 😅`; emoji = '💨'; cls = 'none'; }
+
+  const letter = i => 'ABCD'[i] ?? '?';
+  const optText = i => q.options[i] ?? '—';
+
+  root.innerHTML = `
+    <div class="header">
+      <div class="badge">Вопрос ${i + 1} / 10</div>
+      <div class="small">Тема: ${escapeHtml(state.topic)}</div>
+    </div>
+    <div class="score">
+      <div class="p"><div class="name">${escapeHtml(state.p1)}</div><div class="pts">${state.score.p1}</div></div>
+      <div class="p"><div class="name">${escapeHtml(state.p2)}</div><div class="pts">${state.score.p2}</div></div>
+    </div>
+
+    <div class="round-banner ${cls}">${emoji} ${escapeHtml(banner)}</div>
+
+    <div class="q">${escapeHtml(q.q)}</div>
+    <div class="round-answer">✅ Правильный ответ: ${letter(q.correct)}. ${escapeHtml(optText(q.correct))}</div>
+
+    <div class="row-pick ${ok1 ? 'ok' : 'fail'}">
+      <div class="left">
+        <span class="icon">${ok1 ? '✅' : '❌'}</span>
+        <b>${escapeHtml(state.p1)}</b>
+      </div>
+      <div>${letter(c1)}. ${escapeHtml(optText(c1))}</div>
+    </div>
+    <div class="row-pick ${ok2 ? 'ok' : 'fail'}">
+      <div class="left">
+        <span class="icon">${ok2 ? '✅' : '❌'}</span>
+        <b>${escapeHtml(state.p2)}</b>
+      </div>
+      <div>${letter(c2)}. ${escapeHtml(optText(c2))}</div>
+    </div>
+
+    <button id="next">${i + 1 >= state.questions.length ? 'Подвести итоги' : 'Следующий вопрос →'}</button>
+  `;
+
+  // конфетти, если кто-то выиграл раунд (включая ничью-обе-правы)
+  if (ok1 || ok2) launchConfetti(ok1 && ok2 ? 'both' : (ok1 ? 'p1' : 'p2'));
+
+  document.getElementById('next').onclick = () => {
+    state.roundChoices = { p1: null, p2: null };
+    state.turnInRound = 0;
+    state.index++;
+    if (state.index >= state.questions.length) renderResult();
+    else renderQuestion();
+  };
+}
+
+function launchConfetti(kind) {
+  const emojis = kind === 'both' ? ['🎉','✨','🎊','⭐','🟢']
+               : kind === 'p1'   ? ['🎉','🟠','✨','🏆','🎊']
+               :                   ['🎉','🟣','✨','🏆','🎊'];
+  for (let i = 0; i < 50; i++) {
+    const s = document.createElement('span');
+    s.className = 'confetti';
+    s.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    s.style.left = Math.random() * 100 + 'vw';
+    s.style.animationDuration = (1.6 + Math.random() * 1.8) + 's';
+    s.style.animationDelay = (Math.random() * 0.3) + 's';
+    s.style.fontSize = (1 + Math.random() * 1.2) + 'rem';
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 4000);
+  }
+}
+
+function renderResult() {
+  let winner;
+  if (state.score.p1 > state.score.p2) winner = `🏆 Победил ${state.p1}!`;
+  else if (state.score.p2 > state.score.p1) winner = `🏆 Победил ${state.p2}!`;
+  else winner = '🤝 Ничья!';
+  root.innerHTML = `
+    <h1 class="center">Игра окончена</h1>
+    <div class="score">
+      <div class="p"><div class="name">${escapeHtml(state.p1)}</div><div class="pts">${state.score.p1}</div></div>
+      <div class="p"><div class="name">${escapeHtml(state.p2)}</div><div class="pts">${state.score.p2}</div></div>
+    </div>
+    <div class="center winner">${winner}</div>
+    <button id="again">Сыграть ещё раз</button>
+    <button id="newtopic" style="background:#3a3a3c;">Новая тема</button>
+  `;
+  document.getElementById('again').onclick = async () => {
+    renderLoading();
+    try {
+      state.questions = await generateQuestions(state.topic);
+      state.index = 0; state.turnInRound = 0;
+      state.score = { p1: 0, p2: 0 };
+      state.roundChoices = { p1: null, p2: null };
+      renderQuestion();
+    } catch (e) {
+      renderSetup(); showErr(e.message);
+    }
+  };
+  document.getElementById('newtopic').onclick = renderSetup;
+}
+
+// =================== ГЕНЕРАЦИЯ ВОПРОСОВ ===================
+// Ключ OpenAI хранится на backend (Cloudflare Pages Function /api/questions).
+// В браузере ключа нет — фронт просто шлёт тему и получает массив вопросов.
+
+async function generateQuestions(topic) {
+  const resp = await fetch('/api/questions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic }),
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error('HTTP ' + resp.status + ': ' + errText.slice(0, 200));
+  }
+  const parsedObj = await resp.json();
+  const arr = parsedObj.questions || parsedObj.items || (Array.isArray(parsedObj) ? parsedObj : null);
+  if (!Array.isArray(arr) || arr.length < 10) {
+    throw new Error('Сервер вернул неверный формат');
+  }
+  const cleaned = arr.slice(0, 10).map(item => ({
+    q: String(item.q || item.question || ''),
+    options: (item.options || item.answers || []).slice(0, 4).map(String),
+    correct: Math.max(0, Math.min(3, Number(item.correct ?? item.answer ?? 0))),
+  })).filter(x => x.q && x.options.length === 4);
+  if (cleaned.length < 10) throw new Error('Недостаточно валидных вопросов');
+  return cleaned;
+}
+
+function extractJson(text) {
+  // пытаемся найти JSON-массив в любой обёртке
+  try { return JSON.parse(text); } catch {}
+  const m = text.match(/\[[\s\S]*\]/);
+  if (m) {
+    try { return JSON.parse(m[0]); } catch {}
+  }
+  throw new Error('Не удалось распарсить ответ');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+// старт
+renderSetup();
+</script>
+</body>
+</html>
